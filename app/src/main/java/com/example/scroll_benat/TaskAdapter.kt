@@ -10,7 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
  * @param tasks Lista de tareas a mostrar.
  * @param onItemDone Función de callback que se llama cuando un elemento de la lista se marca como completado.
  */
-class TaskAdapter(private val tasks: List<String>, private val onItemDone: (Int) -> Unit) : RecyclerView.Adapter<TaskViewHolder>() {
+class TaskAdapter(private val tasks: MutableList<Task>, private val onItemDone: (Int) -> Unit) : RecyclerView.Adapter<TaskViewHolder>() {
 
     /**
      * Crea y devuelve un ViewHolder para una tarea.
@@ -38,6 +38,6 @@ class TaskAdapter(private val tasks: List<String>, private val onItemDone: (Int)
      * @param position Posición de la tarea en la lista.
      */
     override fun onBindViewHolder(holder: TaskViewHolder, position: Int) {
-        holder.render(tasks[position], onItemDone)
+        holder.render(tasks[position].getTitle(), onItemDone)
     }
 }

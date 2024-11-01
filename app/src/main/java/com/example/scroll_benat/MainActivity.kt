@@ -15,29 +15,30 @@ import androidx.recyclerview.widget.RecyclerView
 
 /**
  * MainActivity es la actividad principal que administra la UI de la aplicación.
- * Permite añadir y eliminar tareas en una lista, guardándolas en preferencias compartidas.
+ * Permite añadir y eliminar tareas en una lista, guardándolas en SQLite.
  * Incluye efectos de sonido para interacciones exitosas y errores.
  */
 class MainActivity : AppCompatActivity() {
-    /** ImageView que muestra imagen cuando no hay tasks */
+
+    /** ImageView que muestra imagen cuando no hay tareas */
     private lateinit var imageViewNoTasks: ImageView
     /** Campo de texto donde el usuario escribe una nueva tarea. */
-    lateinit var etTask: EditText
+    private lateinit var etTask: EditText
 
     /** Botón para agregar una nueva tarea a la lista de tareas. */
-    lateinit var btnAddTask: Button
+    private lateinit var btnAddTask: Button
 
     /** RecyclerView que muestra la lista de tareas actuales. */
-    lateinit var rvTasks: RecyclerView
+    private lateinit var rvTasks: RecyclerView
 
     /** Adaptador que gestiona la visualización de tareas en el RecyclerView. */
-    lateinit var adapter: TaskAdapter
+    private lateinit var adapter: TaskAdapter
 
-    /** Objeto Preferences que guarda y recupera la lista de tareas del almacenamiento compartido. */
-    lateinit var prefs: Preferences
+    /** Objeto TaskBDHelper que gestiona la base de datos de tareas. */
+    private lateinit var taskBDHelper: TaskBDHelper
 
     /** Lista mutable de tareas, que es la fuente de datos del RecyclerView. */
-    var tasks = mutableListOf<String>()
+    private var tasks = mutableListOf<Task>()
 
     /** Sonido de confirmación para indicar una acción exitosa. */
     private lateinit var okSound: MediaPlayer
@@ -46,21 +47,26 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cashSound: MediaPlayer
 
     /** Sonido de error para indicar un problema o una acción incorrecta. */
-    lateinit var errorSound: MediaPlayer
+    private lateinit var errorSound: MediaPlayer
 
     /**
      * Método onCreate que se llama al crear la actividad. Configura los elementos UI,
-     * inicializa los sonidos y las preferencias compartidas.
+     * inicializa los sonidos y la base de datos.
      *
      * @param savedInstanceState Estado previamente guardado de la actividad.
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        prefs = Preferences(this)
+
+        // Inicializar el helper de la base de datos
+        taskBDHelper = TaskBDHelper(this)
+
+        // Inicializar sonidos
         okSound = MediaPlayer.create(this, R.raw.ok)
         cashSound = MediaPlayer.create(this, R.raw.cash)
         errorSound = MediaPlayer.create(this, R.raw.error)
+
         initUi()
     }
 
@@ -75,10 +81,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Configura el RecyclerView, recupera las tareas guardadas y las muestra en la lista.
+     * Configura el RecyclerView, recupera las tareas guardadas en SQLite y las muestra en la lista.
      */
     private fun initRecyclerView() {
-        tasks = prefs.getTasks()
+        tasks = taskBDHelper.getAllNotas().toMutableList() // Obtener tareas de SQLite
         rvTasks.layoutManager = LinearLayoutManager(this)
         adapter = TaskAdapter(tasks) { deleteTask(it) }
         rvTasks.adapter = adapter
@@ -92,9 +98,10 @@ class MainActivity : AppCompatActivity() {
      * @param position Posición de la tarea a eliminar en la lista.
      */
     private fun deleteTask(position: Int) {
+        val taskToDelete = tasks[position]
+        taskBDHelper.deleteNota(taskToDelete.id) // Eliminar de SQLite
         tasks.removeAt(position)
         adapter.notifyDataSetChanged()
-        prefs.saveTasks(tasks)
         cashSound.start()
         updateNoTasksVisibility()
     }
@@ -122,106 +129,55 @@ class MainActivity : AppCompatActivity() {
      * Si se añade exitosamente, limpia el campo de texto y reproduce un sonido de confirmación.
      */
     private fun addTask() {
-        val newTask = etTask.text.toString()
-        if (newTask.isEmpty()) {
+        val newTaskTitle = etTask.text.toString()
+        if (newTaskTitle.isEmpty()) {
             errorSound.start()
             etTask.error = "Escribe una tarea!"
         } else {
+            // Crear un nuevo objeto Task y agregarlo a la base de datos
+            val newTask = Task(0, newTaskTitle, "") // ID es 0 porque es auto-generado
+            taskBDHelper.insertNota(newTask)
             tasks.add(newTask)
-            prefs.saveTasks(tasks)
             adapter.notifyDataSetChanged()
             etTask.setText("")
             okSound.start()
             updateNoTasksVisibility()
         }
     }
+
     private fun attachSwipeToDelete() {
         val itemTouchHelper = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
-
-            /**
-             * Método que maneja el movimiento de un elemento dentro del RecyclerView.
-             * En este caso, no se utiliza, así que devuelve false.
-             *
-             * @param recyclerView El RecyclerView donde ocurre el movimiento.
-             * @param viewHolder El ViewHolder del elemento que se está moviendo.
-             * @param target El ViewHolder del elemento objetivo donde se está moviendo.
-             * @return false porque no se usa el movimiento.
-             */
-            override fun onMove(
-                recyclerView: RecyclerView,
-                viewHolder: RecyclerView.ViewHolder,
-                target: RecyclerView.ViewHolder
-            ): Boolean {
+            override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
                 return false // No se utiliza el movimiento vertical
             }
 
-            /**
-             * Método que se llama para dibujar el ítem mientras se desliza.
-             * Cambia el color del fondo del ítem a rojo mientras se desliza.
-             *
-             * @param c Canvas donde se dibuja el RecyclerView.
-             * @param recyclerView El RecyclerView.
-             * @param viewHolder El ViewHolder del ítem que se desliza.
-             * @param dX Desplazamiento en X durante el deslizamiento.
-             * @param dY Desplazamiento en Y durante el deslizamiento.
-             * @param actionState Estado actual del gesto (deslizar, arrastrar, etc.).
-             * @param isCurrentlyActive Indica si el gesto está activo.
-             */
-            override fun onChildDraw(
-                c: Canvas,
-                recyclerView: RecyclerView,
-                viewHolder: RecyclerView.ViewHolder,
-                dX: Float,
-                dY: Float,
-                actionState: Int,
-                isCurrentlyActive: Boolean
-            ) {
+            override fun onChildDraw(c: Canvas, recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, dX: Float, dY: Float, actionState: Int, isCurrentlyActive: Boolean) {
                 if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE) {
                     val itemView = viewHolder.itemView // Obtiene la vista del ítem
-
-                    // Cambia el color del fondo del ítem a rojo mientras se desliza
-                    itemView.setBackgroundColor(Color.RED)
-
-                    // Aplica la traducción en X para el desplazamiento
-                    itemView.translationX = dX
+                    itemView.setBackgroundColor(Color.RED) // Cambia el color del fondo del ítem a rojo
+                    itemView.translationX = dX // Aplica la traducción en X para el desplazamiento
                 }
                 super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
             }
 
-            /**
-             * Método que se llama cuando un ítem ha sido deslizado.
-             * Llama a la función de eliminación después del deslizamiento.
-             *
-             * @param viewHolder El ViewHolder que fue deslizado.
-             * @param direction La dirección en la que se deslizó (izquierda o derecha).
-             */
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                 val position = viewHolder.adapterPosition // Obtiene la posición del ítem deslizado
                 deleteTask(position) // Llama a la función de eliminación
             }
 
-            /**
-             * Método que se llama para limpiar la vista del ítem después de que se ha deslizado.
-             * Restablece el color de fondo al original.
-             *
-             * @param recyclerView El RecyclerView donde se encuentra el ítem.
-             * @param viewHolder El ViewHolder del ítem que fue deslizado.
-             */
             override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
                 super.clearView(recyclerView, viewHolder)
-                // Restablece el color de fondo al original después de que el usuario deja de deslizar
-                viewHolder.itemView.setBackgroundColor(Color.TRANSPARENT)
+                viewHolder.itemView.setBackgroundColor(Color.TRANSPARENT) // Restablece el color de fondo al original
             }
         }
 
         // Asocia el ItemTouchHelper al RecyclerView
         ItemTouchHelper(itemTouchHelper).attachToRecyclerView(rvTasks)
     }
+
     /**
      * Actualiza la visibilidad de la vista de la lista de tareas y de la imagen
-     * que indica que no hay tareas disponibles. Si la lista de tareas está vacía,
-     * oculta el RecyclerView y muestra la imagen que indica que no hay tareas.
-     * Si hay tareas en la lista, muestra el RecyclerView y oculta la imagen.
+     * que indica que no hay tareas disponibles.
      */
     private fun updateNoTasksVisibility() {
         if (tasks.isEmpty()) {
