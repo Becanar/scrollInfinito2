@@ -5,8 +5,10 @@ import android.graphics.Color
 import android.media.MediaPlayer
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -17,7 +19,8 @@ import androidx.recyclerview.widget.RecyclerView
  * Incluye efectos de sonido para interacciones exitosas y errores.
  */
 class MainActivity : AppCompatActivity() {
-
+    /** ImageView que muestra imagen cuando no hay tasks */
+    private lateinit var imageViewNoTasks: ImageView
     /** Campo de texto donde el usuario escribe una nueva tarea. */
     lateinit var etTask: EditText
 
@@ -79,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         rvTasks.layoutManager = LinearLayoutManager(this)
         adapter = TaskAdapter(tasks) { deleteTask(it) }
         rvTasks.adapter = adapter
+        updateNoTasksVisibility()
     }
 
     /**
@@ -92,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         adapter.notifyDataSetChanged()
         prefs.saveTasks(tasks)
         cashSound.start()
+        updateNoTasksVisibility()
     }
 
     /**
@@ -101,6 +106,7 @@ class MainActivity : AppCompatActivity() {
         etTask = findViewById(R.id.etTask)
         btnAddTask = findViewById(R.id.btnAddTask)
         rvTasks = findViewById(R.id.rvTasks)
+        imageViewNoTasks = findViewById(R.id.imageViewNoTasks)
     }
 
     /**
@@ -126,6 +132,7 @@ class MainActivity : AppCompatActivity() {
             adapter.notifyDataSetChanged()
             etTask.setText("")
             okSound.start()
+            updateNoTasksVisibility()
         }
     }
     private fun attachSwipeToDelete() {
@@ -209,5 +216,20 @@ class MainActivity : AppCompatActivity() {
 
         // Asocia el ItemTouchHelper al RecyclerView
         ItemTouchHelper(itemTouchHelper).attachToRecyclerView(rvTasks)
+    }
+    /**
+     * Actualiza la visibilidad de la vista de la lista de tareas y de la imagen
+     * que indica que no hay tareas disponibles. Si la lista de tareas está vacía,
+     * oculta el RecyclerView y muestra la imagen que indica que no hay tareas.
+     * Si hay tareas en la lista, muestra el RecyclerView y oculta la imagen.
+     */
+    private fun updateNoTasksVisibility() {
+        if (tasks.isEmpty()) {
+            rvTasks.visibility = View.GONE
+            imageViewNoTasks.visibility = View.VISIBLE // Muestra la imagen
+        } else {
+            rvTasks.visibility = View.VISIBLE
+            imageViewNoTasks.visibility = View.GONE // Oculta la imagen
+        }
     }
 }
