@@ -1,5 +1,3 @@
-package com.example.scroll_benat
-
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
@@ -7,7 +5,7 @@ import androidx.recyclerview.widget.RecyclerView
 
 /**
  * ViewHolder para mostrar y gestionar la vista de una tarea individual en un RecyclerView.
- *
+ * 
  * @param view Vista que representa un elemento de tarea en la lista.
  */
 class TaskViewHolder(view: View) : RecyclerView.ViewHolder(view) {
